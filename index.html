@@ -241,7 +241,7 @@
 
         // --- CONFIGURAÇÕES GERAIS ---
         const GAME_CONFIG = {
-            walkSpeed: 15.0, // Velocidade levemente aumentada para compensar falta de inércia
+            walkSpeed: 15.0, 
             tempRateUp: 1.5,    
             tempRateDown: 0.8,  
             stalkerSpeed: 4.0, 
@@ -285,7 +285,7 @@
             inDoor: false,
             gameOver: false,
             activeNotebook: null,
-            isGameActive: false // Substitui isLocked para mobile
+            isGameActive: false
         };
 
         let timers = {
@@ -305,7 +305,7 @@
         // Touch Look Variables
         let touchStartX = 0;
         let touchStartY = 0;
-        let lookSpeed = 0.005; // Um pouco mais rápido
+        let lookSpeed = 0.005;
 
         // Entidades
         let jacketObj = null; 
@@ -367,35 +367,29 @@
 
             // Controls config
             controls = new PointerLockControls(camera, document.body);
-            scene.add(controls.getObject()); // Adiciona o objeto da câmera controlado
+            scene.add(controls.getObject());
             
-            // Listeners PointerLock (Desktop)
             controls.addEventListener('lock', () => { gameState.isGameActive = true; });
             controls.addEventListener('unlock', () => { 
-                // Apenas pausa se não for uma interação de UI
                 if(!gameState.inDoor && !gameState.isPaused && !gameState.gameOver) {
                     gameState.isGameActive = false; 
                 }
             });
 
-            // Start Button
             const startBtn = document.getElementById('btn-start');
             startBtn.addEventListener('click', () => {
                 startGamePlay();
             });
 
-            // Next Day Button
             const nextDayBtn = document.getElementById('btn-next-day');
             nextDayBtn.addEventListener('click', () => {
                 nextDay();
             });
 
-            // Input Listeners
             document.addEventListener('keydown', onKeyDown);
             document.addEventListener('keyup', onKeyUp);
             window.addEventListener('resize', onWindowResize);
 
-            // Mobile/Touch Controls
             setupTouchControls();
 
             raycaster = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, 0, -1), 0, 3);
@@ -405,7 +399,6 @@
         }
 
         function setupTouchControls() {
-            // Joystick
             const setupBtn = (id, directionVar) => {
                 const btn = document.getElementById(id);
                 const startAction = (e) => {
@@ -439,7 +432,6 @@
             setupBtn('btn-left', 'L');
             setupBtn('btn-right', 'R');
 
-            // Action Buttons
             const btnInteract = document.getElementById('btn-interact');
             const interactHandler = (e) => { e.preventDefault(); interact(); };
             btnInteract.addEventListener('touchstart', interactHandler);
@@ -450,11 +442,10 @@
             btnJacket.addEventListener('touchstart', jacketHandler);
             btnJacket.addEventListener('click', jacketHandler);
 
-            // Look Zone (Rotation)
+            // AXIS LOCKED LOOK ZONE
             const lookZone = document.getElementById('touch-look-zone');
             
             lookZone.addEventListener('touchstart', (e) => {
-                // e.preventDefault(); // Permitir clique mas cuidado com scroll
                 if(e.touches.length > 0) {
                     touchStartX = e.touches[0].pageX;
                     touchStartY = e.touches[0].pageY;
@@ -462,7 +453,7 @@
             }, {passive: false});
 
             lookZone.addEventListener('touchmove', (e) => {
-                e.preventDefault(); // Impede scroll da página
+                e.preventDefault(); 
                 if(!gameState.isGameActive || gameState.isPaused) return;
 
                 if(e.touches.length > 0) {
@@ -472,14 +463,16 @@
                     const deltaX = x - touchStartX;
                     const deltaY = y - touchStartY;
 
-                    // Rotacionar manualmente o objeto do PointerLockControls
-                    // Yaw (Esquerda/Direita) - Rotaciona o objeto Pai (Player)
-                    controls.getObject().rotation.y -= deltaX * lookSpeed;
-                    
-                    // Pitch (Cima/Baixo)
-                    const cam = controls.getObject();
-                    cam.rotation.x -= deltaY * lookSpeed;
-                    cam.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, cam.rotation.x));
+                    // --- AXIS LOCKING MECHANIC ---
+                    // Se o movimento horizontal for maior, move SÓ horizontal.
+                    // Se vertical for maior, move SÓ vertical.
+                    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                        controls.getObject().rotation.y -= deltaX * lookSpeed; // Lados
+                    } else {
+                        const cam = controls.getObject();
+                        cam.rotation.x -= deltaY * lookSpeed; // Cima/Baixo
+                        cam.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, cam.rotation.x));
+                    }
 
                     touchStartX = x;
                     touchStartY = y;
@@ -491,19 +484,15 @@
             document.getElementById('start-screen').style.display = 'none';
             document.getElementById('end-screen').style.display = 'none';
             
-            // Tenta ativar fullscreen no mobile
             if (document.documentElement.requestFullscreen) {
                 document.documentElement.requestFullscreen().catch((e)=>{});
             }
 
-            // Tenta PointerLock no Desktop
             try {
                 controls.lock();
             } catch(e) {}
             
-            // Força estado ativo (para mobile onde lock pode não ocorrer)
             gameState.isGameActive = true;
-            
             resetLevel();
         }
 
@@ -536,10 +525,8 @@
             });
 
             controls.getObject().position.set(0, 1.6, 0); 
-            // Resetar rotação
             controls.getObject().rotation.set(0,0,0);
             
-            // Reset Entidades
             crowGroup.position.set(0, -50, 0);
             monitorGroup.position.set(0, -50, 0);
 
@@ -934,7 +921,6 @@
         // --- SISTEMA DE MATEMÁTICA E DIAS ---
         function triggerMathEvent() {
             gameState.isPaused = true;
-            // Para mobile, não precisamos destravar, mas garantimos que o estado de jogo pare
             try { controls.unlock(); } catch(e){}
             
             let problemText = "";
@@ -1008,7 +994,6 @@
         function closeMathScreen() {
             document.getElementById('math-screen').style.display = 'none';
             gameState.isPaused = false;
-            // Retorna ao estado ativo se estava
             if(!gameState.gameOver) gameState.isGameActive = true;
             try { if(!isMobile()) controls.lock(); } catch(e){}
         }
@@ -1290,29 +1275,61 @@
             const time = performance.now();
             const delta = (time - prevTime) / 1000;
 
-            // Movimentação "Snappy" (Sem inércia)
             if (gameState.isGameActive && !gameState.isPaused && !gameState.gameOver) {
                 
-                // Zera velocidade (sem deslize)
+                // RESET VELOCITY (NO INERTIA)
                 velocity.x = 0;
                 velocity.z = 0;
 
-                // Define velocidade direta se tecla pressionada
                 if (moveForward) velocity.z = GAME_CONFIG.walkSpeed;
                 if (moveBackward) velocity.z = -GAME_CONFIG.walkSpeed;
                 if (moveLeft) velocity.x = -GAME_CONFIG.walkSpeed;
                 if (moveRight) velocity.x = GAME_CONFIG.walkSpeed;
 
-                // Aplica movimento
-                controls.moveRight(-velocity.x * delta);
-                controls.moveForward(velocity.z * delta); // PointerLock moveForward recebe distância, não velocidade
+                // --- MANUAL MOVEMENT LOGIC TO PREVENT FLYING ---
+                // Em vez de controls.moveForward (que usa o vetor da câmera e voa),
+                // calculamos o vetor 'frente' baseado APENAS no YAW (rotação Y) da câmera.
+                
+                const camObj = controls.getObject();
+                const yaw = camObj.rotation.y; 
+                
+                // Frente/Trás (Z Velocity)
+                if (velocity.z !== 0) {
+                    // Math.sin/cos para mover no plano XZ baseado no ângulo Y
+                    // ThreeJS: Z is forward (negativo) usually, but here logic depends.
+                    // PointerLockControls default looks down -Z.
+                    // Forward (W) = Move towards -Z relative to camera rotation.
+                    
+                    const d = velocity.z * delta;
+                    // Forward vector from yaw: x = -sin(yaw), z = -cos(yaw)
+                    camObj.position.x -= Math.sin(yaw) * d;
+                    camObj.position.z -= Math.cos(yaw) * d;
+                }
+
+                // Esquerda/Direita (X Velocity)
+                if (velocity.x !== 0) {
+                    const d = velocity.x * delta;
+                    // Right vector from yaw: x = cos(yaw), z = -sin(yaw)
+                    camObj.position.x += Math.cos(yaw) * d;
+                    camObj.position.z -= Math.sin(yaw) * d;
+                }
 
                 const playerPos = controls.getObject().position;
                 
                 for(let wallBox of walls) {
                     if(wallBox.containsPoint(playerPos)) {
-                        controls.moveRight(velocity.x * delta); // Reverte
-                        controls.moveForward(-velocity.z * delta); // Reverte
+                        // Simple Pushback - Invert last move
+                        // Re-calculating simplified pushback for robust manual move
+                        if(velocity.z !== 0) {
+                            const d = velocity.z * delta;
+                            camObj.position.x += Math.sin(yaw) * d;
+                            camObj.position.z += Math.cos(yaw) * d;
+                        }
+                        if(velocity.x !== 0) {
+                            const d = velocity.x * delta;
+                            camObj.position.x -= Math.cos(yaw) * d;
+                            camObj.position.z += Math.sin(yaw) * d;
+                        }
                     }
                 }
                 updateTemperature(delta);
