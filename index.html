@@ -241,7 +241,7 @@
 
         // --- CONFIGURAÇÕES GERAIS ---
         const GAME_CONFIG = {
-            walkSpeed: 10.0,
+            walkSpeed: 15.0, // Velocidade levemente aumentada para compensar falta de inércia
             tempRateUp: 1.5,    
             tempRateDown: 0.8,  
             stalkerSpeed: 4.0, 
@@ -305,7 +305,7 @@
         // Touch Look Variables
         let touchStartX = 0;
         let touchStartY = 0;
-        let lookSpeed = 0.004;
+        let lookSpeed = 0.005; // Um pouco mais rápido
 
         // Entidades
         let jacketObj = null; 
@@ -476,16 +476,8 @@
                     // Yaw (Esquerda/Direita) - Rotaciona o objeto Pai (Player)
                     controls.getObject().rotation.y -= deltaX * lookSpeed;
                     
-                    // Pitch (Cima/Baixo) - Rotaciona a Camera (Filho) mas PointerLock tem estrutura especifica
-                    // A implementação padrão do threejs PointerLockControls rotaciona o objeto passado.
-                    // Para pitch manual seguro, vamos mexer direto no camera rotation X mas clampando
-                    
-                    // AVISO: PointerLockControls mantem Euler order YXZ.
-                    // Vamos tentar aplicar a rotação no objeto principal e pitch manual.
-                    // Uma forma mais segura sem quebrar o PointerLock interno é usar euler manual
-                    
+                    // Pitch (Cima/Baixo)
                     const cam = controls.getObject();
-                    // cam.rotation.y -= deltaX * lookSpeed; // Já feito
                     cam.rotation.x -= deltaY * lookSpeed;
                     cam.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, cam.rotation.x));
 
@@ -1298,28 +1290,29 @@
             const time = performance.now();
             const delta = (time - prevTime) / 1000;
 
-            // Condição modificada para aceitar Mobile (sem pointer lock)
+            // Movimentação "Snappy" (Sem inércia)
             if (gameState.isGameActive && !gameState.isPaused && !gameState.gameOver) {
-                velocity.x -= velocity.x * 10.0 * delta;
-                velocity.z -= velocity.z * 10.0 * delta;
+                
+                // Zera velocidade (sem deslize)
+                velocity.x = 0;
+                velocity.z = 0;
 
-                direction.z = Number(moveForward) - Number(moveBackward);
-                direction.x = Number(moveRight) - Number(moveLeft);
-                direction.normalize();
+                // Define velocidade direta se tecla pressionada
+                if (moveForward) velocity.z = GAME_CONFIG.walkSpeed;
+                if (moveBackward) velocity.z = -GAME_CONFIG.walkSpeed;
+                if (moveLeft) velocity.x = -GAME_CONFIG.walkSpeed;
+                if (moveRight) velocity.x = GAME_CONFIG.walkSpeed;
 
-                if (moveForward || moveBackward) velocity.z -= direction.z * 400.0 * delta;
-                if (moveLeft || moveRight) velocity.x -= direction.x * 400.0 * delta;
-
+                // Aplica movimento
                 controls.moveRight(-velocity.x * delta);
-                controls.moveForward(-velocity.z * delta);
+                controls.moveForward(velocity.z * delta); // PointerLock moveForward recebe distância, não velocidade
 
                 const playerPos = controls.getObject().position;
                 
                 for(let wallBox of walls) {
                     if(wallBox.containsPoint(playerPos)) {
-                        controls.moveRight(velocity.x * delta); 
-                        controls.moveForward(velocity.z * delta); 
-                        velocity.set(0,0,0); 
+                        controls.moveRight(velocity.x * delta); // Reverte
+                        controls.moveForward(-velocity.z * delta); // Reverte
                     }
                 }
                 updateTemperature(delta);
