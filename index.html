@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SALA X - Sobrevivência Escolar</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'VT323', monospace; user-select: none; -webkit-touch-callout: none; }
+        
+        /* HUD e UI */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; touch-action: none; }
+        
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; width: 20px; height: 20px;
+            background: transparent; border: 2px solid lime; border-radius: 50%;
+            transform: translate(-50%, -50%); z-index: 10;
+        }
+
+        .hud-panel {
+            position: absolute; padding: 10px; background: rgba(0, 0, 0, 0.7); 
+            border: 2px solid white; color: white; font-size: 24px;
+        }
+
+        #stats-hud { top: 20px; left: 20px; width: 250px; bottom: auto; } /* Movido para cima no mobile */
+        #temp-bar-bg { width: 100%; height: 20px; background: #333; margin-top: 5px; border: 1px solid #fff; }
+        #temp-bar-fill { height: 100%; width: 50%; background: orange; transition: width 0.2s, background 0.2s; }
+        
+        #day-hud { top: 20px; right: 20px; font-size: 40px; color: lime; text-align: right; }
+
+        #message-area {
+            position: absolute; top: 20%; left: 50%; transform: translate(-50%, 0);
+            width: 80%;
+            color: yellow; font-size: 32px; text-shadow: 2px 2px #000; text-align: center;
+            display: none;
+        }
+
+        #monitor-warning {
+            position: absolute; top: 10%; left: 50%; transform: translate(-50%, 0);
+            width: 100%; text-align: center;
+            color: red; font-size: 48px; font-weight: bold; animation: blink 0.5s infinite;
+            display: none; text-transform: uppercase;
+        }
+
+        /* Telas de Bloqueio (Interativas) */
+        .overlay-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); display: none; flex-direction: column;
+            align-items: center; justify-content: center; color: white; z-index: 20;
+            pointer-events: auto;
+        }
+
+        #start-screen { display: flex; background: #111; }
+        h1 { font-size: 80px; margin: 0; color: lime; text-shadow: 4px 4px #000; text-align: center; line-height: 0.9; }
+        button {
+            background: #333; color: white; border: 2px solid white; 
+            padding: 15px 30px; font-size: 24px; cursor: pointer; font-family: 'VT323', monospace;
+            margin-top: 20px;
+        }
+        button:hover { background: #555; }
+        .hint-btn { background: #0044aa; font-size: 18px; padding: 10px; margin-top: 10px; display: none; }
+
+        #math-screen input { font-size: 30px; padding: 5px; width: 100px; text-align: center; }
+        
+        #door-pad { 
+            background: #444; padding: 20px; border: 4px solid #888; display: grid; 
+            grid-template-columns: repeat(3, 1fr); gap: 10px; 
+        }
+        .pad-btn { width: 50px; height: 50px; font-size: 24px; cursor: pointer; background: #222; color: #fff; border: 1px solid #fff; }
+        #door-display { grid-column: span 3; background: #000; color: lime; font-size: 30px; text-align: center; padding: 5px; margin-bottom: 10px; }
+
+        /* Memory Game Styles */
+        #memory-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px;
+        }
+        .memory-card {
+            width: 60px; height: 60px; background: #333; border: 2px solid #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 30px; cursor: pointer; color: transparent;
+        }
+        .memory-card.flipped { background: #fff; color: #000; }
+        .memory-card.matched { background: lime; color: #000; border-color: lime; }
+
+        /* CONTROLES MOBILE */
+        .touch-controls {
+            pointer-events: auto;
+            position: absolute;
+            z-index: 15;
+            display: flex;
+            user-select: none;
+        }
+
+        /* Joystick Esquerdo */
+        #joystick-area {
+            bottom: 30px; left: 30px; 
+            flex-direction: column; align-items: center; gap: 5px;
+        }
+        .joy-row { display: flex; gap: 5px; }
+        .joy-btn {
+            width: 60px; height: 60px; background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3); border-radius: 10px;
+            color: white; font-size: 30px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+        }
+        .joy-btn:active, .joy-btn.active { background: rgba(0, 255, 0, 0.4); border-color: lime; }
+
+        /* Botões de Ação Direita */
+        #action-area {
+            bottom: 40px; right: 30px; gap: 20px;
+        }
+        .action-btn {
+            width: 70px; height: 70px; border-radius: 50%;
+            border: 3px solid white; background: rgba(0,0,0,0.5);
+            color: white; font-size: 35px; display: flex; align-items: center; justify-content: center;
+        }
+        .action-btn:active { background: rgba(255,255,0,0.5); border-color: yellow; transform: scale(0.95); }
+
+        /* Área invisível para girar a câmera (Lado direito da tela) */
+        #touch-look-zone {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 5; /* Atrás da UI, mas frente do canvas */
+            pointer-events: auto;
+        }
+
+        @media (max-width: 600px) {
+            #stats-hud { font-size: 16px; width: 180px; padding: 5px; top: 5px; left: 5px; }
+            #day-hud { font-size: 30px; top: 5px; right: 5px; }
+            #monitor-warning { font-size: 30px; top: 50px; }
+            #instructions-text { display: none; } /* Esconde texto de ajuda PC no mobile */
+            h1 { font-size: 50px; }
+        }
+
+        @keyframes blink { 0% {opacity: 1;} 50% {opacity: 0;} 100% {opacity: 1;} }
+    </style>
+</head>
+<body>
+
+    <!-- ZONE TO DRAG CAMERA -->
+    <div id="touch-look-zone"></div>
+
+    <!-- UI LAYER -->
+    <div id="ui-layer">
+        <div id="crosshair"></div>
+        
+        <div id="monitor-warning">⚠ HELITON SE APROXIMA! ⚠</div>
+        <div id="message-area">Mensagem do Sistema</div>
+        
+        <div id="day-hud" class="hud-panel">DIA <span id="day-val">1</span></div>
+
+        <div id="stats-hud" class="hud-panel">
+            <div>VIDAS: <span id="lives-display" style="color:red">❤❤❤</span></div>
+            <div style="margin-top: 5px;">TEMP: <span id="temp-val">50%</span></div>
+            <div id="temp-bar-bg"><div id="temp-bar-fill"></div></div>
+            <div id="instructions-text" style="margin-top: 10px; font-size: 18px; color: #aaa;">
+                [W,A,S,D] Mover <br>
+                [I] ou [Q] Soltar/Pegar Blusa <br>
+                [E] Interagir/Esconder
+            </div>
+            <div style="margin-top: 5px; color: yellow;" id="code-collection">Códigos: _ _ _ _</div>
+        </div>
+
+        <!-- JOYSTICK (Movimento) -->
+        <div id="joystick-area" class="touch-controls">
+            <div class="joy-row">
+                <div class="joy-btn" id="btn-up">▲</div>
+            </div>
+            <div class="joy-row">
+                <div class="joy-btn" id="btn-left">◀</div>
+                <div class="joy-btn" id="btn-down">▼</div>
+                <div class="joy-btn" id="btn-right">▶</div>
+            </div>
+        </div>
+
+        <!-- ACTION BUTTONS (Interação) -->
+        <div id="action-area" class="touch-controls">
+            <div class="action-btn" id="btn-interact" title="Interagir">🖐</div>
+            <div class="action-btn" id="btn-jacket" title="Blusa">🧥</div>
+        </div>
+    </div>
+
+    <!-- START SCREEN -->
+    <div id="start-screen" class="overlay-screen">
+        <h1>SALA X<br><span style="font-size:30px">MOBILE EDITION</span></h1>
+        <p>Regras: Sobreviva 7 DIAS. Fuja do Corvo Darci.</p>
+        <p>O monitor Heliton fiscaliza uniformes.</p>
+        <button id="btn-start">COMEÇAR DIA 1</button>
+    </div>
+
+    <!-- MATH SCREEN -->
+    <div id="math-screen" class="overlay-screen">
+        <h2 style="color: yellow; text-align:center">RESOLVA PARA PEGAR O CÓDIGO!</h2>
+        <div id="math-problem" style="font-size: 40px; margin: 20px;">2 + 2 = ?</div>
+        <div id="hint-text" style="color: cyan; margin-bottom: 10px; font-size: 24px; min-height: 30px;"></div>
+        <input type="number" id="math-input" autofocus>
+        <button id="btn-submit-math">RESPONDER</button>
+        <button id="btn-hint" class="hint-btn">JOGAR MEMÓRIA P/ RESPOSTA</button>
+        <div style="margin-top:20px; color: #aaa; font-size: 18px;">Se errar, o caderno fecha.</div>
+    </div>
+
+    <!-- MEMORY GAME SCREEN -->
+    <div id="memory-screen" class="overlay-screen">
+        <h2 style="color: cyan">MEMÓRIA</h2>
+        <div id="memory-grid">
+            <!-- Cards generated by JS -->
+        </div>
+        <button onclick="closeMemoryScreen()">CANCELAR</button>
+    </div>
+
+    <!-- DOOR SCREEN -->
+    <div id="door-screen" class="overlay-screen">
+        <h2>PAINEL DE SEGURANÇA</h2>
+        <div id="door-pad">
+            <div id="door-display">----</div>
+            <!-- Botões gerados via JS -->
+        </div>
+        <button onclick="closeDoorScreen()">SAIR</button>
+    </div>
+
+    <!-- GAME OVER / WIN -->
+    <div id="end-screen" class="overlay-screen">
+        <h1 id="end-title">GAME OVER</h1>
+        <p id="end-reason" style="font-size: 30px; text-align: center; padding: 0 20px;"></p>
+        <button id="btn-restart" onclick="location.reload()">TENTAR NOVAMENTE</button>
+        <button id="btn-next-day" style="display:none">PRÓXIMO DIA</button>
+    </div>
+
+    <!-- THREE.JS IMPORTS -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+        // --- CONFIGURAÇÕES GERAIS ---
+        const GAME_CONFIG = {
+            walkSpeed: 10.0,
+            tempRateUp: 1.5,    
+            tempRateDown: 0.8,  
+            stalkerSpeed: 4.0, 
+            monitorCycle: 30,     
+            stalkerCycle: 15,   
+            stalkerDuration: 8 
+        };
+
+        const mapGrid = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,3,0,0,1,0,0,0,0,0,1,0,0,2,1], 
+            [1,2,0,0,0,0,0,0,0,0,0,0,0,3,1], 
+            [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+            [1,1,0,1,1,0,0,0,0,0,1,1,0,1,1], 
+            [1,0,0,0,1,0,2,0,2,0,1,0,0,0,1], 
+            [1,0,2,0,0,0,0,0,0,0,0,0,2,0,1],
+            [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+            [1,1,0,1,1,0,0,0,0,0,1,1,0,1,1],
+            [1,3,0,0,1,0,0,0,0,0,1,0,0,0,1], 
+            [1,0,0,2,0,0,0,0,0,0,0,2,0,0,1],
+            [1,0,0,0,1,0,0,0,0,0,1,0,0,3,1], 
+            [1,1,1,1,1,1,0,0,0,1,1,1,1,1,1], 
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,2,0,0,0,0,0,0,0,0,0,0,0,2,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,9,1,1,1,1,1,1,1]  
+        ];
+        const UNIT_SIZE = 5;
+
+        // --- ESTADO DO JOGO ---
+        let gameState = {
+            day: 1,
+            lives: 3,
+            temp: 50,           
+            hasJacket: true,
+            codesFound: [],     
+            finalCode: [],      
+            currentMathAnswer: 0,
+            isPaused: false,
+            isHiding: false,
+            inDoor: false,
+            gameOver: false,
+            activeNotebook: null,
+            isGameActive: false // Substitui isLocked para mobile
+        };
+
+        let timers = {
+            monitor: 0,
+            stalker: 0,
+            stalkerActiveTimer: 0
+        };
+
+        // --- VARIÁVEIS THREE.JS ---
+        let camera, scene, renderer, controls;
+        let raycaster;
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let prevTime = performance.now();
+        const velocity = new THREE.Vector3();
+        const direction = new THREE.Vector3();
+        
+        // Touch Look Variables
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let lookSpeed = 0.004;
+
+        // Entidades
+        let jacketObj = null; 
+        let crowGroup = null; 
+        let crowWings = []; 
+        let monitorGroup = null; 
+        let monitorLimbs = []; 
+        let lockers = []; 
+        let walls = [];   
+        let notebooks = []; 
+        let exitDoor = null;
+
+        // --- ASSETS PROCEDURAIS ---
+        function createTexture(color, text) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128; canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = color;
+            ctx.fillRect(0,0,128,128);
+            if(text) {
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 80px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(text, 64, 64);
+            }
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const textures = {
+            wall: createTexture('#444', ''),
+            floor: createTexture('#222', ''),
+            jacket: createTexture('#0000FF', '🧥'),
+            notebook: createTexture('#00AA00', '📓'),
+            locker: createTexture('#553311', '🚪'),
+            door: createTexture('#888', 'EXIT')
+        };
+
+        // --- INICIALIZAÇÃO ---
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+            scene.fog = new THREE.Fog(0x000000, 0, 30);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.y = 1.6;
+
+            const light = new THREE.HemisphereLight(0xeeeeff, 0x777788, 0.75);
+            light.position.set(0.5, 1, 0.75);
+            scene.add(light);
+            const pointLight = new THREE.PointLight(0xffaa00, 1, 15);
+            camera.add(pointLight);
+            scene.add(camera);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Controls config
+            controls = new PointerLockControls(camera, document.body);
+            scene.add(controls.getObject()); // Adiciona o objeto da câmera controlado
+            
+            // Listeners PointerLock (Desktop)
+            controls.addEventListener('lock', () => { gameState.isGameActive = true; });
+            controls.addEventListener('unlock', () => { 
+                // Apenas pausa se não for uma interação de UI
+                if(!gameState.inDoor && !gameState.isPaused && !gameState.gameOver) {
+                    gameState.isGameActive = false; 
+                }
+            });
+
+            // Start Button
+            const startBtn = document.getElementById('btn-start');
+            startBtn.addEventListener('click', () => {
+                startGamePlay();
+            });
+
+            // Next Day Button
+            const nextDayBtn = document.getElementById('btn-next-day');
+            nextDayBtn.addEventListener('click', () => {
+                nextDay();
+            });
+
+            // Input Listeners
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+            window.addEventListener('resize', onWindowResize);
+
+            // Mobile/Touch Controls
+            setupTouchControls();
+
+            raycaster = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, 0, -1), 0, 3);
+
+            buildMap();
+            setupEntities();
+        }
+
+        function setupTouchControls() {
+            // Joystick
+            const setupBtn = (id, directionVar) => {
+                const btn = document.getElementById(id);
+                const startAction = (e) => {
+                    e.preventDefault(); 
+                    btn.classList.add('active');
+                    switch(directionVar) {
+                        case 'F': moveForward = true; break;
+                        case 'B': moveBackward = true; break;
+                        case 'L': moveLeft = true; break;
+                        case 'R': moveRight = true; break;
+                    }
+                };
+                const endAction = (e) => {
+                    e.preventDefault();
+                    btn.classList.remove('active');
+                    switch(directionVar) {
+                        case 'F': moveForward = false; break;
+                        case 'B': moveBackward = false; break;
+                        case 'L': moveLeft = false; break;
+                        case 'R': moveRight = false; break;
+                    }
+                };
+                btn.addEventListener('touchstart', startAction);
+                btn.addEventListener('touchend', endAction);
+                btn.addEventListener('mousedown', startAction);
+                btn.addEventListener('mouseup', endAction);
+            };
+
+            setupBtn('btn-up', 'F');
+            setupBtn('btn-down', 'B');
+            setupBtn('btn-left', 'L');
+            setupBtn('btn-right', 'R');
+
+            // Action Buttons
+            const btnInteract = document.getElementById('btn-interact');
+            const interactHandler = (e) => { e.preventDefault(); interact(); };
+            btnInteract.addEventListener('touchstart', interactHandler);
+            btnInteract.addEventListener('click', interactHandler);
+
+            const btnJacket = document.getElementById('btn-jacket');
+            const jacketHandler = (e) => { e.preventDefault(); dropJacket(); };
+            btnJacket.addEventListener('touchstart', jacketHandler);
+            btnJacket.addEventListener('click', jacketHandler);
+
+            // Look Zone (Rotation)
+            const lookZone = document.getElementById('touch-look-zone');
+            
+            lookZone.addEventListener('touchstart', (e) => {
+                // e.preventDefault(); // Permitir clique mas cuidado com scroll
+                if(e.touches.length > 0) {
+                    touchStartX = e.touches[0].pageX;
+                    touchStartY = e.touches[0].pageY;
+                }
+            }, {passive: false});
+
+            lookZone.addEventListener('touchmove', (e) => {
+                e.preventDefault(); // Impede scroll da página
+                if(!gameState.isGameActive || gameState.isPaused) return;
+
+                if(e.touches.length > 0) {
+                    const x = e.touches[0].pageX;
+                    const y = e.touches[0].pageY;
+                    
+                    const deltaX = x - touchStartX;
+                    const deltaY = y - touchStartY;
+
+                    // Rotacionar manualmente o objeto do PointerLockControls
+                    // Yaw (Esquerda/Direita) - Rotaciona o objeto Pai (Player)
+                    controls.getObject().rotation.y -= deltaX * lookSpeed;
+                    
+                    // Pitch (Cima/Baixo) - Rotaciona a Camera (Filho) mas PointerLock tem estrutura especifica
+                    // A implementação padrão do threejs PointerLockControls rotaciona o objeto passado.
+                    // Para pitch manual seguro, vamos mexer direto no camera rotation X mas clampando
+                    
+                    // AVISO: PointerLockControls mantem Euler order YXZ.
+                    // Vamos tentar aplicar a rotação no objeto principal e pitch manual.
+                    // Uma forma mais segura sem quebrar o PointerLock interno é usar euler manual
+                    
+                    const cam = controls.getObject();
+                    // cam.rotation.y -= deltaX * lookSpeed; // Já feito
+                    cam.rotation.x -= deltaY * lookSpeed;
+                    cam.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, cam.rotation.x));
+
+                    touchStartX = x;
+                    touchStartY = y;
+                }
+            }, {passive: false});
+        }
+
+        function startGamePlay() {
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('end-screen').style.display = 'none';
+            
+            // Tenta ativar fullscreen no mobile
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch((e)=>{});
+            }
+
+            // Tenta PointerLock no Desktop
+            try {
+                controls.lock();
+            } catch(e) {}
+            
+            // Força estado ativo (para mobile onde lock pode não ocorrer)
+            gameState.isGameActive = true;
+            
+            resetLevel();
+        }
+
+        function nextDay() {
+            gameState.day++;
+            if(gameState.day > 7) {
+                triggerWinGame();
+                return;
+            }
+            startGamePlay();
+        }
+
+        function resetLevel() {
+            gameState.temp = 50;
+            gameState.codesFound = [];
+            gameState.isPaused = false;
+            gameState.isHiding = false;
+            gameState.inDoor = false;
+            gameState.gameOver = false;
+            
+            timers.monitor = 0;
+            timers.stalker = 0;
+            timers.stalkerActiveTimer = 0;
+
+            generateCode();
+            
+            notebooks.forEach(nb => {
+                nb.visible = true;
+                nb.userData.collected = false;
+            });
+
+            controls.getObject().position.set(0, 1.6, 0); 
+            // Resetar rotação
+            controls.getObject().rotation.set(0,0,0);
+            
+            // Reset Entidades
+            crowGroup.position.set(0, -50, 0);
+            monitorGroup.position.set(0, -50, 0);
+
+            gameState.hasJacket = true;
+            if(jacketObj) jacketObj.visible = false;
+
+            updateHUD();
+            document.getElementById('day-val').innerText = gameState.day;
+            showMessage(`DIA ${gameState.day} INICIADO`);
+        }
+
+        function generateCode() {
+            gameState.finalCode = [];
+            for(let i=0; i<4; i++) gameState.finalCode.push(Math.floor(Math.random()*10));
+            console.log("Código Secreto:", gameState.finalCode.join(''));
+            updateCodeDisplay();
+        }
+
+        function buildMap() {
+            const floorGeo = new THREE.PlaneGeometry(150, 150);
+            const floorMat = new THREE.MeshStandardMaterial({ map: textures.floor });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = - Math.PI / 2;
+            scene.add(floor);
+
+            const boxGeo = new THREE.BoxGeometry(UNIT_SIZE, UNIT_SIZE, UNIT_SIZE);
+            const wallMat = new THREE.MeshStandardMaterial({ map: textures.wall });
+            const lockerMat = new THREE.MeshStandardMaterial({ map: textures.locker });
+
+            for (let z = 0; z < mapGrid.length; z++) {
+                for (let x = 0; x < mapGrid[z].length; x++) {
+                    const type = mapGrid[z][x];
+                    const posX = (x * UNIT_SIZE) - (mapGrid[0].length * UNIT_SIZE) / 2;
+                    const posZ = (z * UNIT_SIZE) - (mapGrid.length * UNIT_SIZE) / 2;
+
+                    if (type === 1) {
+                        const wall = new THREE.Mesh(boxGeo, wallMat);
+                        wall.position.set(posX, UNIT_SIZE/2, posZ);
+                        scene.add(wall);
+                        walls.push(new THREE.Box3().setFromObject(wall));
+                    } else if (type === 2) {
+                        const locker = new THREE.Mesh(boxGeo, lockerMat);
+                        locker.scale.set(0.8, 1, 0.8);
+                        locker.position.set(posX, UNIT_SIZE/2, posZ);
+                        locker.userData = { type: 'locker' };
+                        scene.add(locker);
+                        walls.push(new THREE.Box3().setFromObject(locker)); 
+                        lockers.push(locker);
+                    } else if (type === 9) {
+                        const doorGeo = new THREE.PlaneGeometry(UNIT_SIZE, UNIT_SIZE);
+                        const door = new THREE.Mesh(doorGeo, new THREE.MeshBasicMaterial({map: textures.door}));
+                        door.position.set(posX, UNIT_SIZE/2, posZ - 0.1);
+                        if(z === mapGrid.length -1) door.rotation.y = Math.PI;
+                        door.userData = { type: 'door' };
+                        scene.add(door);
+                        exitDoor = door;
+                        walls.push(new THREE.Box3().setFromObject(door));
+                    } else if (type === 3) {
+                        const mat = new THREE.SpriteMaterial({ map: textures.notebook });
+                        const notebook = new THREE.Sprite(mat);
+                        notebook.scale.set(1.5, 1.5, 1);
+                        notebook.position.set(posX, 1.5, posZ);
+                        notebook.userData = { type: 'notebook', collected: false };
+                        scene.add(notebook);
+                        notebooks.push(notebook);
+                    }
+                }
+            }
+        }
+
+        function createCrowModel() {
+            const group = new THREE.Group();
+            const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
+            const yellowMat = new THREE.MeshBasicMaterial({ color: 0xFFD700 });
+            
+            const bodyGeo = new THREE.CapsuleGeometry(0.3, 0.6, 4, 8);
+            const body = new THREE.Mesh(bodyGeo, blackMat);
+            body.rotation.x = Math.PI / 2; 
+            group.add(body);
+
+            const headGeo = new THREE.SphereGeometry(0.25, 8, 8);
+            const head = new THREE.Mesh(headGeo, blackMat);
+            head.position.set(0, 0.2, 0.5);
+            group.add(head);
+
+            const beakGeo = new THREE.ConeGeometry(0.08, 0.4, 8);
+            const beak = new THREE.Mesh(beakGeo, yellowMat);
+            beak.rotation.x = Math.PI / 2;
+            beak.position.set(0, 0.15, 0.8);
+            group.add(beak);
+
+            const wingGeo = new THREE.BoxGeometry(1.2, 0.05, 0.6);
+            
+            const wingLGroup = new THREE.Group();
+            const wingL = new THREE.Mesh(wingGeo, blackMat);
+            wingL.position.x = 0.6; 
+            wingLGroup.add(wingL);
+            wingLGroup.position.set(0.2, 0.1, 0);
+            group.add(wingLGroup);
+            crowWings.push(wingLGroup);
+
+            const wingRGroup = new THREE.Group();
+            const wingR = new THREE.Mesh(wingGeo, blackMat);
+            wingR.position.x = -0.6; 
+            wingRGroup.add(wingR);
+            wingRGroup.position.set(-0.2, 0.1, 0);
+            group.add(wingRGroup);
+            crowWings.push(wingRGroup);
+
+            return group;
+        }
+
+        function createMonitorModel() {
+            const group = new THREE.Group();
+            const skinMat = new THREE.MeshStandardMaterial({ color: 0xffccaa }); 
+            const shirtMat = new THREE.MeshStandardMaterial({ color: 0xffffff }); 
+            const pantsMat = new THREE.MeshStandardMaterial({ color: 0x222222 }); 
+            const blackMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+
+            const headGeo = new THREE.SphereGeometry(0.25, 16, 16);
+            const head = new THREE.Mesh(headGeo, skinMat);
+            head.position.y = 1.7;
+            group.add(head);
+
+            const eyeGeo = new THREE.SphereGeometry(0.03, 8, 8);
+            const eyeL = new THREE.Mesh(eyeGeo, blackMat);
+            eyeL.position.set(0.1, 1.75, 0.22);
+            group.add(eyeL);
+            const eyeR = new THREE.Mesh(eyeGeo, blackMat);
+            eyeR.position.set(-0.1, 1.75, 0.22);
+            group.add(eyeR);
+
+            const noseGeo = new THREE.ConeGeometry(0.03, 0.1, 8);
+            const nose = new THREE.Mesh(noseGeo, skinMat);
+            nose.position.set(0, 1.7, 0.25);
+            nose.rotation.x = Math.PI / 2;
+            group.add(nose);
+
+            const torsoGeo = new THREE.BoxGeometry(0.5, 0.7, 0.3);
+            const torso = new THREE.Mesh(torsoGeo, shirtMat);
+            torso.position.y = 1.25;
+            group.add(torso);
+
+            const armGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.7);
+            
+            const armLGroup = new THREE.Group();
+            armLGroup.position.set(0.35, 1.55, 0);
+            const armL = new THREE.Mesh(armGeo, shirtMat);
+            armL.position.y = -0.35;
+            armLGroup.add(armL);
+            group.add(armLGroup);
+            monitorLimbs.push(armLGroup);
+
+            const armRGroup = new THREE.Group();
+            armRGroup.position.set(-0.35, 1.55, 0);
+            const armR = new THREE.Mesh(armGeo, shirtMat);
+            armR.position.y = -0.35;
+            armRGroup.add(armR);
+            group.add(armRGroup);
+            monitorLimbs.push(armRGroup);
+
+            const legGeo = new THREE.CylinderGeometry(0.1, 0.08, 0.9);
+
+            const legLGroup = new THREE.Group();
+            legLGroup.position.set(0.15, 0.9, 0);
+            const legL = new THREE.Mesh(legGeo, pantsMat);
+            legL.position.y = -0.45;
+            legLGroup.add(legL);
+            group.add(legLGroup);
+            monitorLimbs.push(legLGroup);
+
+            const legRGroup = new THREE.Group();
+            legRGroup.position.set(-0.15, 0.9, 0);
+            const legR = new THREE.Mesh(legGeo, pantsMat);
+            legR.position.y = -0.45;
+            legRGroup.add(legR);
+            group.add(legRGroup);
+            monitorLimbs.push(legRGroup);
+
+            return group;
+        }
+
+        function setupEntities() {
+            crowGroup = createCrowModel();
+            crowGroup.position.set(0, -50, 0); 
+            crowGroup.scale.set(1.5, 1.5, 1.5);
+            scene.add(crowGroup);
+
+            monitorGroup = createMonitorModel();
+            monitorGroup.position.set(0, -50, 0);
+            scene.add(monitorGroup);
+        }
+
+        // --- CONTROLES ---
+        function onKeyDown(event) {
+            switch (event.code) {
+                case 'ArrowUp': case 'KeyW': moveForward = true; break;
+                case 'ArrowLeft': case 'KeyA': moveLeft = true; break;
+                case 'ArrowDown': case 'KeyS': moveBackward = true; break;
+                case 'ArrowRight': case 'KeyD': moveRight = true; break;
+                case 'KeyI': case 'KeyQ': dropJacket(); break;
+                case 'KeyE': interact(); break;
+            }
+        }
+        function onKeyUp(event) {
+            switch (event.code) {
+                case 'ArrowUp': case 'KeyW': moveForward = false; break;
+                case 'ArrowLeft': case 'KeyA': moveLeft = false; break;
+                case 'ArrowDown': case 'KeyS': moveBackward = false; break;
+                case 'ArrowRight': case 'KeyD': moveRight = false; break;
+            }
+        }
+
+        // --- LÓGICA DE INTERAÇÃO ---
+        function interact() {
+            if (gameState.gameOver || gameState.isPaused) return;
+
+            if (gameState.isHiding) {
+                exitHiding();
+                return;
+            }
+
+            const camDir = new THREE.Vector3();
+            camera.getWorldDirection(camDir);
+            raycaster.set(camera.position, camDir);
+            raycaster.camera = camera; 
+
+            if (!gameState.hasJacket && jacketObj) {
+                const intersects = raycaster.intersectObject(jacketObj);
+                if (intersects.length > 0 && intersects[0].distance < 3.0) {
+                    pickUpJacket();
+                    return;
+                }
+            }
+
+            const activeNotebooks = notebooks.filter(n => n.visible);
+            const interactables = [...lockers, exitDoor, ...activeNotebooks];
+            const intersects = raycaster.intersectObjects(interactables);
+            
+            if (intersects.length > 0 && intersects[0].distance < 3.0) {
+                const target = intersects[0].object;
+                if (target.userData.type === 'locker') {
+                    enterHiding(target.position);
+                } else if (target.userData.type === 'door') {
+                    openDoorPanel();
+                } else if (target.userData.type === 'notebook') {
+                    gameState.activeNotebook = target;
+                    triggerMathEvent();
+                }
+            }
+        }
+
+        function dropJacket() {
+            if (!gameState.hasJacket || gameState.isHiding) return;
+            gameState.hasJacket = false;
+            showMessage("Você tirou a blusa.");
+            if (!jacketObj) {
+                const geo = new THREE.BoxGeometry(1, 0.2, 1);
+                const mat = new THREE.MeshBasicMaterial({ map: textures.jacket });
+                jacketObj = new THREE.Mesh(geo, mat);
+                jacketObj.userData = { type: 'jacket' };
+                scene.add(jacketObj);
+            }
+            const dir = new THREE.Vector3();
+            camera.getWorldDirection(dir);
+            jacketObj.position.copy(camera.position).add(dir.multiplyScalar(1.5));
+            jacketObj.position.y = 0.2;
+            jacketObj.visible = true;
+            updateHUD();
+        }
+
+        function pickUpJacket() {
+            gameState.hasJacket = true;
+            jacketObj.visible = false;
+            showMessage("Você vestiu a blusa.");
+            updateHUD();
+        }
+
+        function enterHiding(pos) {
+            gameState.isHiding = true;
+            showMessage("Escondido... (Aperte E para sair)");
+            document.getElementById('ui-layer').style.backgroundColor = 'rgba(0,0,0,0.8)';
+        }
+
+        function exitHiding() {
+            gameState.isHiding = false;
+            showMessage("");
+            document.getElementById('ui-layer').style.backgroundColor = 'transparent';
+        }
+
+        function updateTemperature(delta) {
+            if (gameState.isPaused || gameState.gameOver) return;
+            let change = 0;
+            if (gameState.hasJacket) {
+                change = GAME_CONFIG.tempRateUp * delta; 
+            } else {
+                change = -GAME_CONFIG.tempRateDown * delta; 
+            }
+            gameState.temp += change;
+            if (gameState.temp >= 100) triggerGameOver("INSOLAÇÃO! Você cozinhou.");
+            if (gameState.temp <= 0) triggerGameOver("HIPOTERMIA! Você congelou.");
+            const bar = document.getElementById('temp-bar-fill');
+            const val = document.getElementById('temp-val');
+            bar.style.width = gameState.temp + '%';
+            val.innerText = Math.floor(gameState.temp) + '%';
+            if(gameState.temp > 80) bar.style.backgroundColor = 'red';
+            else if(gameState.temp < 20) bar.style.backgroundColor = 'cyan';
+            else bar.style.backgroundColor = 'orange';
+        }
+
+        function updateTimers(delta) {
+            if (gameState.isPaused || gameState.gameOver) return;
+
+            timers.monitor += delta;
+            const monitorWarn = document.getElementById('monitor-warning');
+            const spawnTime = GAME_CONFIG.monitorCycle - 5;
+            
+            if (timers.monitor > spawnTime && timers.monitor < GAME_CONFIG.monitorCycle) {
+                if (monitorGroup.position.y < -10) {
+                     spawnMonitor();
+                }
+                updateMonitorLogic(delta);
+                monitorWarn.style.display = 'block';
+            } else {
+                monitorWarn.style.display = 'none';
+                if(timers.monitor < spawnTime) monitorGroup.position.y = -50;
+            }
+
+            if (timers.monitor >= GAME_CONFIG.monitorCycle) {
+                triggerMonitorEvent();
+                timers.monitor = 0;
+                monitorGroup.position.y = -50; 
+            }
+
+            if (timers.stalkerActiveTimer > 0) {
+                timers.stalkerActiveTimer -= delta;
+                updateCrowLogic(delta);
+                if (timers.stalkerActiveTimer <= 0) {
+                    crowGroup.position.y = -50; 
+                    showMessage("Darci voou para longe.");
+                }
+            } else {
+                timers.stalker += delta;
+                if (timers.stalker >= GAME_CONFIG.stalkerCycle) {
+                    activateCrow();
+                    timers.stalker = 0;
+                }
+            }
+        }
+
+        function spawnMonitor() {
+             const dir = new THREE.Vector3();
+             camera.getWorldDirection(dir);
+             dir.y = 0; dir.normalize();
+             monitorGroup.position.copy(camera.position).add(dir.multiplyScalar(15));
+             monitorGroup.position.y = 0;
+             monitorGroup.lookAt(camera.position);
+             monitorGroup.visible = true;
+        }
+
+        function updateMonitorLogic(delta) {
+            monitorGroup.lookAt(camera.position.x, 0, camera.position.z);
+            const dist = monitorGroup.position.distanceTo(camera.position);
+            if(dist > 2.5) {
+                const dir = new THREE.Vector3().subVectors(camera.position, monitorGroup.position).normalize();
+                dir.y = 0;
+                monitorGroup.position.add(dir.multiplyScalar(3.0 * delta));
+
+                const time = performance.now() * 0.01;
+                monitorLimbs[0].rotation.x = Math.sin(time) * 0.5;
+                monitorLimbs[1].rotation.x = -Math.sin(time) * 0.5;
+                monitorLimbs[2].rotation.x = -Math.sin(time) * 0.5;
+                monitorLimbs[3].rotation.x = Math.sin(time) * 0.5;
+            } else {
+                monitorLimbs.forEach(l => l.rotation.x = 0);
+            }
+        }
+
+        function triggerMonitorEvent() {
+            let msg = "";
+            let safe = !gameState.hasJacket; 
+            if (safe) {
+                msg = "HELITON: Muito bem, uniforme correto.";
+                showMessage(msg);
+            } else {
+                msg = "HELITON: TIRA ESSA BLUSA! (-2 Vidas)";
+                showMessage(msg);
+                takeDamage(2);
+            }
+        }
+
+        // --- SISTEMA DE MATEMÁTICA E DIAS ---
+        function triggerMathEvent() {
+            gameState.isPaused = true;
+            // Para mobile, não precisamos destravar, mas garantimos que o estado de jogo pare
+            try { controls.unlock(); } catch(e){}
+            
+            let problemText = "";
+            let finalRes = 0;
+
+            if (gameState.day <= 2) {
+                const n1 = Math.floor(Math.random()*20);
+                const n2 = Math.floor(Math.random()*20);
+                if (Math.random() > 0.5) {
+                    problemText = `${n1} + ${n2}`;
+                    finalRes = n1 + n2;
+                } else {
+                    const max = Math.max(n1, n2);
+                    const min = Math.min(n1, n2);
+                    problemText = `${max} - ${min}`;
+                    finalRes = max - min;
+                }
+            } else if (gameState.day <= 4) {
+                const n1 = Math.floor(Math.random()*10);
+                const n2 = Math.floor(Math.random()*10);
+                const n3 = Math.floor(Math.random()*10);
+                problemText = `${n1} x ${n2} + ${n3}`;
+                finalRes = (n1 * n2) + n3;
+            } else {
+                const n1 = Math.floor(Math.random()*15);
+                const n2 = Math.floor(Math.random()*15);
+                const n3 = Math.floor(Math.random()*50);
+                problemText = `(${n1} + ${n2}) x 2 - ${n3}`;
+                finalRes = ((n1 + n2) * 2) - n3;
+            }
+
+            gameState.currentMathAnswer = finalRes;
+
+            document.getElementById('math-problem').innerText = `${problemText} = ?`;
+            document.getElementById('hint-text').innerText = ""; 
+            
+            const hintBtn = document.getElementById('btn-hint');
+            if(gameState.day >= 3) {
+                hintBtn.style.display = 'block';
+                hintBtn.onclick = () => initMemoryGame();
+            } else {
+                hintBtn.style.display = 'none';
+            }
+
+            const screen = document.getElementById('math-screen');
+            screen.style.display = 'flex';
+            
+            const input = document.getElementById('math-input');
+            input.value = '';
+            input.focus();
+
+            const btn = document.getElementById('btn-submit-math');
+            const newBtn = btn.cloneNode(true);
+            btn.parentNode.replaceChild(newBtn, btn);
+            
+            newBtn.onclick = () => {
+                if(parseInt(input.value) === finalRes) {
+                    showMessage("CORRETO! Você achou um dígito.");
+                    revealCodeFragment();
+                    if(gameState.activeNotebook) {
+                        gameState.activeNotebook.visible = false;
+                        gameState.activeNotebook = null;
+                    }
+                } else {
+                    showMessage("ERRADO! O caderno se fechou...");
+                }
+                closeMathScreen();
+            };
+        }
+
+        function closeMathScreen() {
+            document.getElementById('math-screen').style.display = 'none';
+            gameState.isPaused = false;
+            // Retorna ao estado ativo se estava
+            if(!gameState.gameOver) gameState.isGameActive = true;
+            try { if(!isMobile()) controls.lock(); } catch(e){}
+        }
+
+        // --- SISTEMA DE MEMÓRIA (MINIGAME) ---
+        let memoryCards = [];
+        let flippedCards = [];
+        let matchesFound = 0;
+        const memorySymbols = ['★', '☀', '☂', '☁', '⚡', '❤']; 
+
+        window.initMemoryGame = function() {
+            document.getElementById('math-screen').style.display = 'none'; 
+            document.getElementById('memory-screen').style.display = 'flex';
+            
+            const grid = document.getElementById('memory-grid');
+            grid.innerHTML = '';
+            memoryCards = [];
+            flippedCards = [];
+            matchesFound = 0;
+
+            let deck = [...memorySymbols, ...memorySymbols];
+            deck.sort(() => Math.random() - 0.5);
+
+            deck.forEach((symbol, index) => {
+                const card = document.createElement('div');
+                card.className = 'memory-card';
+                card.dataset.symbol = symbol;
+                card.dataset.index = index;
+                card.onclick = () => flipCard(card);
+                grid.appendChild(card);
+            });
+        };
+
+        window.closeMemoryScreen = function() {
+            document.getElementById('memory-screen').style.display = 'none';
+            document.getElementById('math-screen').style.display = 'flex'; 
+        };
+
+        function flipCard(card) {
+            if(flippedCards.length >= 2 || card.classList.contains('flipped') || card.classList.contains('matched')) return;
+
+            card.classList.add('flipped');
+            card.innerText = card.dataset.symbol;
+            flippedCards.push(card);
+
+            if(flippedCards.length === 2) {
+                checkMatch();
+            }
+        }
+
+        function checkMatch() {
+            const [c1, c2] = flippedCards;
+            if(c1.dataset.symbol === c2.dataset.symbol) {
+                c1.classList.add('matched');
+                c2.classList.add('matched');
+                matchesFound++;
+                flippedCards = [];
+                if(matchesFound === 6) {
+                    setTimeout(() => {
+                        winMemoryGame();
+                    }, 500);
+                }
+            } else {
+                setTimeout(() => {
+                    c1.classList.remove('flipped');
+                    c1.innerText = "";
+                    c2.classList.remove('flipped');
+                    c2.innerText = "";
+                    flippedCards = [];
+                }, 1000);
+            }
+        }
+
+        function winMemoryGame() {
+            closeMemoryScreen();
+            const hintText = document.getElementById('hint-text');
+            hintText.innerText = "RESPOSTA: " + gameState.currentMathAnswer;
+            showMessage("Dica Revelada!");
+        }
+
+        // --- CÓDIGOS E FINALIZAÇÃO ---
+
+        function revealCodeFragment() {
+            if(gameState.codesFound.length < 4) {
+                const index = gameState.codesFound.length;
+                gameState.codesFound.push(gameState.finalCode[index]);
+                updateCodeDisplay();
+            }
+        }
+
+        function updateCodeDisplay() {
+            let str = "Códigos: ";
+            for(let i=0; i<4; i++) {
+                if(i < gameState.codesFound.length) str += gameState.finalCode[i] + " ";
+                else str += "_ ";
+            }
+            document.getElementById('code-collection').innerText = str;
+        }
+
+        function activateCrow() {
+            timers.stalkerActiveTimer = GAME_CONFIG.stalkerDuration;
+            showMessage("DARCI (O CORVO) CHEGOU!");
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 30; 
+            crowGroup.position.x = camera.position.x + Math.cos(angle) * radius;
+            crowGroup.position.z = camera.position.z + Math.sin(angle) * radius;
+            crowGroup.position.y = 2.0; 
+            crowGroup.visible = true;
+        }
+
+        function updateCrowLogic(delta) {
+            if (crowGroup.position.y < -10) return;
+
+            crowGroup.lookAt(camera.position);
+
+            const wingSpeed = 15;
+            const wingAmp = 0.5;
+            const wingAngle = Math.sin(performance.now() / 1000 * wingSpeed) * wingAmp;
+            if(crowWings.length >= 2) {
+                crowWings[0].rotation.z = -wingAngle;
+                crowWings[1].rotation.z = wingAngle;
+            }
+
+            const dir = new THREE.Vector3().subVectors(camera.position, crowGroup.position).normalize();
+            crowGroup.position.add(dir.multiplyScalar(GAME_CONFIG.stalkerSpeed * delta));
+
+            const dist = crowGroup.position.distanceTo(camera.position);
+            if (dist < 1.5) {
+                if (!gameState.isHiding) {
+                    takeDamage(1);
+                    crowGroup.position.y = -50; 
+                    timers.stalkerActiveTimer = 0; 
+                    showMessage("Darci te bicou!");
+                }
+            }
+        }
+
+        function takeDamage(amount) {
+            gameState.lives -= amount;
+            updateHUD();
+            if (gameState.lives <= 0) {
+                triggerGameOver("Suas vidas acabaram.");
+            } else {
+                const overlay = document.getElementById('ui-layer');
+                overlay.style.backgroundColor = 'rgba(255,0,0,0.5)';
+                setTimeout(() => { 
+                    overlay.style.backgroundColor = gameState.isHiding ? 'rgba(0,0,0,0.8)' : 'transparent'; 
+                }, 200);
+            }
+        }
+
+        function updateHUD() {
+            let hearts = "";
+            for(let i=0; i<gameState.lives; i++) hearts += "❤";
+            document.getElementById('lives-display').innerText = hearts;
+        }
+
+        function showMessage(text) {
+            const el = document.getElementById('message-area');
+            el.innerText = text;
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 3000);
+        }
+
+        function triggerGameOver(reason) {
+            gameState.gameOver = true;
+            gameState.isGameActive = false;
+            try { controls.unlock(); } catch(e){}
+            document.getElementById('end-screen').style.display = 'flex';
+            document.getElementById('end-title').innerText = "GAME OVER";
+            document.getElementById('end-title').style.color = "red";
+            document.getElementById('end-reason').innerText = reason;
+            document.getElementById('btn-restart').style.display = 'block';
+            document.getElementById('btn-next-day').style.display = 'none';
+        }
+
+        function triggerDayComplete() {
+            gameState.gameOver = true; 
+            gameState.isGameActive = false;
+            try { controls.unlock(); } catch(e){}
+            document.getElementById('end-screen').style.display = 'flex';
+            document.getElementById('end-title').innerText = "DIA " + gameState.day + " COMPLETO!";
+            document.getElementById('end-title').style.color = "cyan";
+            document.getElementById('end-reason').innerText = "Você sobreviveu mais um dia.";
+            
+            document.getElementById('btn-restart').style.display = 'none';
+            document.getElementById('btn-next-day').style.display = 'block';
+            document.getElementById('btn-next-day').innerText = "INICIAR DIA " + (gameState.day + 1);
+        }
+
+        function triggerWinGame() {
+            gameState.gameOver = true; 
+            gameState.isGameActive = false;
+            try { controls.unlock(); } catch(e){}
+            document.getElementById('end-screen').style.display = 'flex';
+            document.getElementById('end-title').innerText = "VITÓRIA SUPREMA!";
+            document.getElementById('end-title').style.color = "lime";
+            document.getElementById('end-reason').innerText = "Você sobreviveu aos 7 dias e derrotou o sistema escolar.";
+            document.getElementById('btn-restart').style.display = 'block';
+            document.getElementById('btn-restart').innerText = "JOGAR TUDO DE NOVO";
+            document.getElementById('btn-next-day').style.display = 'none';
+        }
+
+        window.openDoorPanel = function() {
+            if(gameState.codesFound.length < 4) {
+                showMessage("Preciso dos 4 Cadernos/Códigos!");
+                return;
+            }
+            gameState.inDoor = true;
+            gameState.isGameActive = false;
+            try { controls.unlock(); } catch(e){}
+            document.getElementById('door-screen').style.display = 'flex';
+            renderDoorPad();
+        };
+
+        window.closeDoorScreen = function() {
+            document.getElementById('door-screen').style.display = 'none';
+            gameState.inDoor = false;
+            gameState.isGameActive = true;
+            try { if(!isMobile()) controls.lock(); } catch(e){}
+        };
+
+        let currentDoorInput = "";
+        function renderDoorPad() {
+            const pad = document.getElementById('door-pad');
+            while(pad.children.length > 1) { pad.removeChild(pad.lastChild); }
+            for(let i=1; i<=9; i++) createBtn(i);
+            createBtn('C');
+            createBtn(0);
+            createBtn('OK');
+
+            function createBtn(val) {
+                const btn = document.createElement('button');
+                btn.className = 'pad-btn';
+                btn.innerText = val;
+                btn.onclick = () => handlePadInput(val);
+                pad.appendChild(btn);
+            }
+            updatePadDisplay();
+        }
+
+        function handlePadInput(val) {
+            if(val === 'C') {
+                currentDoorInput = "";
+            } else if(val === 'OK') {
+                checkDoorCode();
+            } else {
+                if(currentDoorInput.length < 4) currentDoorInput += val;
+            }
+            updatePadDisplay();
+        }
+
+        function updatePadDisplay() {
+            document.getElementById('door-display').innerText = currentDoorInput.padEnd(4, '-');
+        }
+
+        function checkDoorCode() {
+            const correct = gameState.finalCode.join('');
+            if(currentDoorInput === correct) {
+                currentDoorInput = "";
+                closeDoorScreen();
+                triggerDayComplete();
+            } else {
+                currentDoorInput = "";
+                document.getElementById('door-display').innerText = "ERR";
+                setTimeout(updatePadDisplay, 500);
+            }
+        }
+
+        function isMobile() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (gameState.gameOver && !gameState.inDoor) return; 
+
+            const time = performance.now();
+            const delta = (time - prevTime) / 1000;
+
+            // Condição modificada para aceitar Mobile (sem pointer lock)
+            if (gameState.isGameActive && !gameState.isPaused && !gameState.gameOver) {
+                velocity.x -= velocity.x * 10.0 * delta;
+                velocity.z -= velocity.z * 10.0 * delta;
+
+                direction.z = Number(moveForward) - Number(moveBackward);
+                direction.x = Number(moveRight) - Number(moveLeft);
+                direction.normalize();
+
+                if (moveForward || moveBackward) velocity.z -= direction.z * 400.0 * delta;
+                if (moveLeft || moveRight) velocity.x -= direction.x * 400.0 * delta;
+
+                controls.moveRight(-velocity.x * delta);
+                controls.moveForward(-velocity.z * delta);
+
+                const playerPos = controls.getObject().position;
+                
+                for(let wallBox of walls) {
+                    if(wallBox.containsPoint(playerPos)) {
+                        controls.moveRight(velocity.x * delta); 
+                        controls.moveForward(velocity.z * delta); 
+                        velocity.set(0,0,0); 
+                    }
+                }
+                updateTemperature(delta);
+                updateTimers(delta);
+            }
+            prevTime = time;
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        init();
+        animate();
+
+    </script>
+</body>
+</html>
